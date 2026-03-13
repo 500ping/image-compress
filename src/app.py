@@ -3,7 +3,6 @@ import uuid
 
 from flask import (
     Flask,
-    jsonify,
     redirect,
     render_template,
     request,
@@ -18,7 +17,7 @@ from src.models import (
     delete_all_records,
     delete_file_record,
     get_all_files,
-    get_file,
+    get_files_by_ids,
     init_db,
     update_file_status,
 )
@@ -26,6 +25,16 @@ from src.tasks import celery_app, compress_file
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+
+
+def _remove_files(record: dict) -> None:
+    upload_path = os.path.join(UPLOAD_DIR, record["upload_filename"])
+    if os.path.exists(upload_path):
+        os.remove(upload_path)
+    if record.get("compressed_filename"):
+        compressed_path = os.path.join(COMPRESSED_DIR, record["compressed_filename"])
+        if os.path.exists(compressed_path):
+            os.remove(compressed_path)
 
 
 def create_app() -> Flask:
@@ -43,7 +52,41 @@ def create_app() -> Flask:
         files = get_all_files()
         return render_template("history.html", files=files)
 
-    # --------------- API ---------------
+    @app.route("/progress")
+    def progress():
+        ids = request.args.get("ids", "")
+        file_ids = [fid.strip() for fid in ids.split(",") if fid.strip()]
+        if not file_ids:
+            return redirect(url_for("history"))
+
+        records = get_files_by_ids(file_ids)
+        all_done = True
+        for r in records:
+            if r["status"] in ("done", "error"):
+                r["percent"] = 100 if r["status"] == "done" else 0
+            elif r["celery_task_id"]:
+                result = celery_app.AsyncResult(r["celery_task_id"])
+                if result.state == "PROCESSING" and result.info:
+                    r["percent"] = result.info.get("percent", 0)
+                elif result.state == "SUCCESS":
+                    r["percent"] = 100
+                else:
+                    r["percent"] = 0
+                all_done = False
+            else:
+                r["percent"] = 0
+                all_done = False
+
+            if r["status"] == "done" and r["original_size"]:
+                r["savings"] = round(
+                    (1 - r["compressed_size"] / r["original_size"]) * 100, 1
+                )
+
+        return render_template(
+            "progress.html", files=records, all_done=all_done, ids=ids
+        )
+
+    # --------------- Actions ---------------
 
     @app.route("/compress", methods=["POST"])
     def compress():
@@ -51,7 +94,7 @@ def create_app() -> Flask:
         quality = request.form.get("quality", 60, type=int)
 
         if not files or all(not f.filename for f in files):
-            return jsonify({"error": "No files selected."}), 400
+            return render_template("index.html", error="No files selected.")
 
         file_ids = []
         for f in files:
@@ -73,89 +116,23 @@ def create_app() -> Flask:
             update_file_status(file_id, status="queued", celery_task_id=task.id)
             file_ids.append(file_id)
 
-        return jsonify({"file_ids": file_ids})
+        if not file_ids:
+            return render_template("index.html", error="No supported files found.")
 
-    @app.route("/progress/<file_id>")
-    def progress(file_id):
-        record = get_file(file_id)
-        if not record:
-            return jsonify({"error": "Not found"}), 404
-
-        percent = 0
-        if record["status"] == "done":
-            percent = 100
-        elif record["status"] == "error":
-            return jsonify(
-                {
-                    "file_id": file_id,
-                    "status": "error",
-                    "percent": 0,
-                    "error": record.get("error", "Unknown error"),
-                    "original_name": record["original_name"],
-                }
-            )
-        elif record["celery_task_id"]:
-            result = celery_app.AsyncResult(record["celery_task_id"])
-            if result.state == "PROCESSING" and result.info:
-                percent = result.info.get("percent", 0)
-            elif result.state == "SUCCESS":
-                percent = 100
-
-        resp = {
-            "file_id": file_id,
-            "status": record["status"],
-            "percent": percent,
-            "original_name": record["original_name"],
-            "original_size": record["original_size"],
-        }
-        if record["status"] == "done":
-            resp["compressed_size"] = record["compressed_size"]
-            resp["compressed_filename"] = record["compressed_filename"]
-            savings = round(
-                (1 - record["compressed_size"] / record["original_size"]) * 100, 1
-            )
-            resp["savings"] = savings
-        return jsonify(resp)
+        return redirect(url_for("progress", ids=",".join(file_ids)))
 
     @app.route("/delete/<file_id>", methods=["POST"])
     def delete(file_id):
         record = delete_file_record(file_id)
-        if not record:
-            return jsonify({"error": "Not found"}), 404
-
-        # Remove uploaded file
-        upload_path = os.path.join(UPLOAD_DIR, record["upload_filename"])
-        if os.path.exists(upload_path):
-            os.remove(upload_path)
-
-        # Remove compressed file
-        if record.get("compressed_filename"):
-            compressed_path = os.path.join(
-                COMPRESSED_DIR, record["compressed_filename"]
-            )
-            if os.path.exists(compressed_path):
-                os.remove(compressed_path)
-
-        if request.headers.get("Accept") == "application/json":
-            return jsonify({"ok": True})
+        if record:
+            _remove_files(record)
         return redirect(url_for("history"))
 
     @app.route("/delete-all", methods=["POST"])
     def delete_all():
         records = delete_all_records()
         for record in records:
-            upload_path = os.path.join(UPLOAD_DIR, record["upload_filename"])
-            if os.path.exists(upload_path):
-                os.remove(upload_path)
-            if record.get("compressed_filename"):
-                compressed_path = os.path.join(
-                    COMPRESSED_DIR, record["compressed_filename"]
-                )
-                if os.path.exists(compressed_path):
-                    os.remove(compressed_path)
-
-        if request.headers.get("Accept") == "application/json":
-            return jsonify({"ok": True})
+            _remove_files(record)
         return redirect(url_for("history"))
 
     @app.route("/media/compressed/<path:filename>")

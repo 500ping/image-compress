@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active_page = "compress" %}
+
+{% block title %}Processing - CompressIt{% endblock %}
+
+{% block head_extra %}
+{% if not all_done %}
+<meta http-equiv="refresh" content="2">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{% if all_done %}Compression Complete{% else %}Compressing...{% endif %}</h1>
+<p class="page-subtitle">
+  {% if all_done %}
+    All files have been processed.
+  {% else %}
+    This page refreshes automatically. Please wait.
+  {% endif %}
+</p>
+
+<div class="card">
+  <div class="progress-list">
+    {% for f in files %}
+    <div class="file-progress">
+      <div class="fp-header">
+        <span class="fp-name">{{ f.original_name }}</span>
+        <span class="fp-pct">
+          {% if f.status == 'done' %}100%
+          {% elif f.status == 'error' %}&mdash;
+          {% else %}{{ f.percent }}%
+          {% endif %}
+        </span>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar-fill {% if f.status == 'done' %}done{% elif f.status == 'error' %}error{% endif %}"
+             style="width:{% if f.status == 'done' %}100{% elif f.status == 'error' %}100{% else %}{{ f.percent }}{% endif %}%"></div>
+      </div>
+      <div class="fp-info">
+        {% if f.status == 'done' %}
+          {{ "%.1f"|format(f.original_size / 1024) }} KB &rarr; {{ "%.1f"|format(f.compressed_size / 1024) }} KB
+          &bull; saved {{ f.savings }}%
+          &mdash; <a href="/media/compressed/{{ f.compressed_filename }}">Download</a>
+        {% elif f.status == 'error' %}
+          Error: {{ f.error or 'Unknown error' }}
+        {% else %}
+          {{ f.percent }}% compressed
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if all_done %}
+  <div style="display:flex;gap:.75rem;margin-top:1.5rem;">
+    <a href="/" class="btn-primary" style="text-align:center;text-decoration:none;">Compress More</a>
+    <a href="/history" class="btn-primary" style="text-align:center;text-decoration:none;background:linear-gradient(135deg, var(--accent), #0891b2);">View History</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -107,6 +107,15 @@ def get_file(file_id: str) -> dict | None:
         return dict(row) if row else None
 
 
+def get_files_by_ids(file_ids: list[str]) -> list[dict]:
+    with get_db() as conn:
+        placeholders = ",".join("?" for _ in file_ids)
+        rows = conn.execute(
+            f"SELECT * FROM files WHERE id IN ({placeholders})", file_ids
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def get_all_files() -> list[dict]:
     with get_db() as conn:
         rows = conn.execute("SELECT * FROM files ORDER BY created_at DESC").fetchall()

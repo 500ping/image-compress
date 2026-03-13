@@ -10,7 +10,9 @@
 <div class="card">
   {% if files %}
   <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
-    <button class="btn-sm btn-delete" onclick="deleteAll()">Delete All</button>
+    <form method="POST" action="/delete-all" onsubmit="return confirm('Delete ALL files? This cannot be undone.');">
+      <button type="submit" class="btn-sm btn-delete">Delete All</button>
+    </form>
   </div>
   <div class="table-wrap">
     <table>
@@ -26,7 +28,7 @@
       </thead>
       <tbody>
         {% for f in files %}
-        <tr id="row-{{ f.id }}">
+        <tr>
           <td title="{{ f.original_name }}">{{ f.original_name[:45] }}{% if f.original_name|length > 45 %}...{% endif %}</td>
           <td>{{ "%.1f"|format(f.original_size / 1024) }} KB</td>
           <td>
@@ -45,7 +47,9 @@
               {% if f.status == 'done' and f.compressed_filename %}
               <a class="btn-sm btn-download" href="/media/compressed/{{ f.compressed_filename }}">Download</a>
               {% endif %}
-              <button class="btn-sm btn-delete" onclick="deleteFile('{{ f.id }}')">Delete</button>
+              <form method="POST" action="/delete/{{ f.id }}" onsubmit="return confirm('Delete this file?');">
+                <button type="submit" class="btn-sm btn-delete">Delete</button>
+              </form>
             </div>
           </td>
         </tr>
@@ -60,27 +64,4 @@
   </div>
   {% endif %}
 </div>
-
-<script>
-  async function deleteAll() {
-    if (!confirm('Delete ALL files? This cannot be undone.')) return;
-    const resp = await fetch('/delete-all', {
-      method: 'POST',
-      headers: { 'Accept': 'application/json' },
-    });
-    if (resp.ok) location.reload();
-  }
-
-  async function deleteFile(fileId) {
-    if (!confirm('Delete this file and its compressed version?')) return;
-    const resp = await fetch('/delete/' + fileId, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json' },
-    });
-    if (resp.ok) {
-      document.getElementById('row-' + fileId).remove();
-      if (!document.querySelector('tbody tr')) location.reload();
-    }
-  }
-</script>
 {% endblock %}

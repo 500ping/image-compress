@@ -52,10 +52,12 @@ def compress_file(self, file_id: str, upload_filename: str, quality: int) -> dic
             self.update_state(
                 state="PROCESSING", meta={"file_id": file_id, "percent": 10}
             )
+            # Map UI quality (1-100) to CRF (51-0): higher quality = lower CRF
+            crf = round(51 * (100 - quality) / 100)
             ffmpeg.input(upload_path).output(
                 compressed_path,
                 vcodec="libx264",
-                crf=quality,
+                crf=crf,
                 preset="medium",
                 acodec="aac",
                 audio_bitrate="128k",
@@ -65,6 +67,7 @@ def compress_file(self, file_id: str, upload_filename: str, quality: int) -> dic
             )
 
         compressed_size = os.path.getsize(compressed_path)
+
         update_file_status(
             file_id,
             status="done",
