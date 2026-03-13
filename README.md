@@ -52,6 +52,14 @@ uv run python main.py
 
 Open http://localhost:5000 in your browser.
 
+### Docker
+
+```bash
+docker compose up --build
+```
+
+Open http://localhost:5000 in your browser.
+
 ## Project Structure
 
 ```

@@ -7,7 +7,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 MEDIA_DIR = os.path.join(BASE_DIR, "media")
 UPLOAD_DIR = os.path.join(MEDIA_DIR, "uploads")
 COMPRESSED_DIR = os.path.join(MEDIA_DIR, "compressed")
-DB_PATH = os.path.join(BASE_DIR, "compress.db")
+DB_DIR = os.environ.get("DB_DIR", BASE_DIR)
+DB_PATH = os.path.join(DB_DIR, "compress.db")
 
 
 def _get_conn() -> sqlite3.Connection:

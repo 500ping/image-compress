@@ -7,8 +7,9 @@ from PIL import Image
 from src.models import COMPRESSED_DIR, UPLOAD_DIR, update_file_status
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-BROKER_DB = os.path.join(BASE_DIR, "celery_broker.db")
-BACKEND_DB = os.path.join(BASE_DIR, "celery_results.db")
+DB_DIR = os.environ.get("DB_DIR", BASE_DIR)
+BROKER_DB = os.path.join(DB_DIR, "celery_broker.db")
+BACKEND_DB = os.path.join(DB_DIR, "celery_results.db")
 
 celery_app = Celery(
     "compress_demo",
