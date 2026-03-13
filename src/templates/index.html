@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% set active_page = "compress" %}
+
+{% block title %}Compress - CompressIt{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Compress Files</h1>
+<p class="page-subtitle">Drop your images and videos to compress them instantly.</p>
+
+<div class="card">
+  <div id="error-box" class="error-box" style="display:none"></div>
+
+  <form id="upload-form">
+    <label>Files</label>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="files" name="files" accept="image/*,video/*" multiple required>
+      <div class="icon">&#128230;</div>
+      <div class="label">Drag &amp; drop files here or <strong>browse</strong></div>
+      <div class="file-list" id="file-list"></div>
+    </div>
+
+    <label>Quality</label>
+    <div class="quality-row">
+      <input type="range" id="quality" name="quality" min="1" max="100" value="60"
+             oninput="document.getElementById('qval').textContent=this.value">
+      <span class="quality-val" id="qval">60</span>
+    </div>
+
+    <button type="submit" class="btn-primary" id="submit-btn">Compress</button>
+  </form>
+
+  <div class="progress-list" id="progress-section"></div>
+</div>
+
+<script>
+  const form = document.getElementById('upload-form');
+  const progressSection = document.getElementById('progress-section');
+  const errorBox = document.getElementById('error-box');
+  const submitBtn = document.getElementById('submit-btn');
+  const dropZone = document.getElementById('drop-zone');
+  const filesInput = document.getElementById('files');
+  const fileList = document.getElementById('file-list');
+
+  // Drag & drop visual
+  ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
+  dropZone.addEventListener('drop', (ev) => { filesInput.files = ev.dataTransfer.files; showFileList(); });
+  filesInput.addEventListener('change', showFileList);
+
+  function showFileList() {
+    fileList.innerHTML = '';
+    for (const f of filesInput.files) {
+      const d = document.createElement('div');
+      d.textContent = f.name + ' (' + formatSize(f.size) + ')';
+      fileList.appendChild(d);
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+    progressSection.innerHTML = '';
+
+    const formData = new FormData();
+    for (const file of filesInput.files) formData.append('files', file);
+    formData.append('quality', document.getElementById('quality').value);
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Uploading...';
+
+    try {
+      const resp = await fetch('/compress', { method: 'POST', body: formData });
+      const data = await resp.json();
+
+      if (data.error) {
+        errorBox.textContent = data.error;
+        errorBox.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Compress';
+        return;
+      }
+
+      submitBtn.textContent = 'Processing...';
+
+      for (const fid of data.file_ids) {
+        const el = document.createElement('div');
+        el.className = 'file-progress';
+        el.id = 'fp-' + fid;
+        el.innerHTML = `
+          <div class="fp-header"><span class="fp-name">Queued...</span><span class="fp-pct">0%</span></div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:0%"></div></div>
+          <div class="fp-info">Waiting in queue</div>
+        `;
+        progressSection.appendChild(el);
+      }
+
+      pollProgress(data.file_ids);
+    } catch (err) {
+      errorBox.textContent = 'Upload failed: ' + err.message;
+      errorBox.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Compress';
+    }
+  });
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function pollProgress(fileIds) {
+    const pending = new Set(fileIds);
+    const interval = setInterval(async () => {
+      for (const fid of [...pending]) {
+        try {
+          const resp = await fetch('/progress/' + fid);
+          const d = await resp.json();
+          const el = document.getElementById('fp-' + fid);
+          if (!el) continue;
+
+          el.querySelector('.fp-name').textContent = d.original_name;
+          el.querySelector('.fp-pct').textContent = d.percent + '%';
+          const bar = el.querySelector('.bar-fill');
+          bar.style.width = d.percent + '%';
+
+          if (d.status === 'done') {
+            bar.classList.add('done');
+            el.querySelector('.fp-pct').textContent = '100%';
+            el.querySelector('.fp-info').innerHTML =
+              `${formatSize(d.original_size)} &rarr; ${formatSize(d.compressed_size)} &bull; saved ${d.savings}% &mdash; <a href="/media/compressed/${d.compressed_filename}">Download</a>`;
+            pending.delete(fid);
+          } else if (d.status === 'error') {
+            bar.classList.add('error');
+            el.querySelector('.fp-info').textContent = 'Error: ' + (d.error || 'Unknown');
+            pending.delete(fid);
+          } else {
+            el.querySelector('.fp-info').textContent = d.percent + '% compressed';
+          }
+        } catch {}
+      }
+      if (pending.size === 0) {
+        clearInterval(interval);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Compress';
+      }
+    }, 800);
+  }
+</script>
+{% endblock %}

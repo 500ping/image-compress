@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% set active_page = "history" %}
+
+{% block title %}History - CompressIt{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Compression History</h1>
+<p class="page-subtitle">All your compressed files in one place.</p>
+
+<div class="card">
+  {% if files %}
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+    <button class="btn-sm btn-delete" onclick="deleteAll()">Delete All</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Original</th>
+          <th>Compressed</th>
+          <th>Saved</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr id="row-{{ f.id }}">
+          <td title="{{ f.original_name }}">{{ f.original_name[:45] }}{% if f.original_name|length > 45 %}...{% endif %}</td>
+          <td>{{ "%.1f"|format(f.original_size / 1024) }} KB</td>
+          <td>
+            {% if f.compressed_size %}
+              {{ "%.1f"|format(f.compressed_size / 1024) }} KB
+            {% else %}&mdash;{% endif %}
+          </td>
+          <td>
+            {% if f.compressed_size and f.original_size %}
+              {{ "%.1f"|format((1 - f.compressed_size / f.original_size) * 100) }}%
+            {% else %}&mdash;{% endif %}
+          </td>
+          <td><span class="badge badge-{{ f.status }}">{{ f.status }}</span></td>
+          <td>
+            <div class="actions">
+              {% if f.status == 'done' and f.compressed_filename %}
+              <a class="btn-sm btn-download" href="/media/compressed/{{ f.compressed_filename }}">Download</a>
+              {% endif %}
+              <button class="btn-sm btn-delete" onclick="deleteFile('{{ f.id }}')">Delete</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No files yet.</p>
+    <p><a href="/">Compress something!</a></p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  async function deleteAll() {
+    if (!confirm('Delete ALL files? This cannot be undone.')) return;
+    const resp = await fetch('/delete-all', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (resp.ok) location.reload();
+  }
+
+  async function deleteFile(fileId) {
+    if (!confirm('Delete this file and its compressed version?')) return;
+    const resp = await fetch('/delete/' + fileId, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (resp.ok) {
+      document.getElementById('row-' + fileId).remove();
+      if (!document.querySelector('tbody tr')) location.reload();
+    }
+  }
+</script>
+{% endblock %}

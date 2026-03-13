@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Compress Demo{% endblock %}</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --primary-light: #a5b4fc;
+      --accent: #06b6d4;
+      --green: #10b981;
+      --red: #ef4444;
+      --bg: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-card-solid: #1e293b;
+      --bg-input: rgba(15, 23, 42, 0.6);
+      --border: rgba(148, 163, 184, 0.12);
+      --text: #f1f5f9;
+      --text-dim: #94a3b8;
+      --text-muted: #64748b;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
+      z-index: -1;
+      animation: bgShift 20s ease-in-out infinite alternate;
+    }
+    @keyframes bgShift {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      100% { transform: translate(-5%, -5%) rotate(3deg); }
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary-light), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+    }
+    .nav-links { display: flex; gap: .5rem; }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: .5rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: .9rem;
+      font-weight: 500;
+      transition: all .2s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--text);
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    /* ---- Layout ---- */
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem 4rem;
+    }
+    .page-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: .5rem;
+      letter-spacing: -0.03em;
+    }
+    .page-subtitle {
+      color: var(--text-dim);
+      font-size: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    /* ---- Card ---- */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+    }
+
+    /* ---- Form elements ---- */
+    label { display: block; font-weight: 600; margin-bottom: .5rem; font-size: .88rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; }
+
+    .drop-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      background: var(--bg-input);
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.08);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .drop-zone .icon { font-size: 2.5rem; margin-bottom: .5rem; opacity: .7; }
+    .drop-zone .label { font-size: .95rem; color: var(--text-dim); }
+    .drop-zone .label strong { color: var(--primary-light); }
+    .file-list { margin-top: .75rem; font-size: .82rem; color: var(--text-muted); text-align: left; max-height: 80px; overflow-y: auto; }
+    .file-list div { padding: 2px 0; }
+
+    .quality-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .quality-row input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      outline: none;
+    }
+    .quality-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      cursor: pointer;
+    }
+    .quality-val {
+      min-width: 3rem;
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--primary-light);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: .85rem;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .25s;
+      letter-spacing: .01em;
+    }
+    .btn-primary:hover { box-shadow: 0 4px 24px rgba(99, 102, 241, 0.4); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ---- Progress cards ---- */
+    .progress-list { margin-top: 1.5rem; display: flex; flex-direction: column; gap: .75rem; }
+    .file-progress {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.25rem;
+    }
+    .fp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; }
+    .fp-name { font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+    .fp-pct { font-size: .82rem; font-weight: 700; color: var(--primary-light); }
+    .bar-wrap { background: rgba(148, 163, 184, 0.1); border-radius: 4px; height: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .4s ease; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+    .bar-fill.done { background: linear-gradient(90deg, var(--green), #34d399); }
+    .bar-fill.error { background: var(--red); }
+    .fp-info { margin-top: .5rem; font-size: .82rem; color: var(--text-muted); }
+    .fp-info a { color: var(--primary-light); font-weight: 600; text-decoration: none; }
+    .fp-info a:hover { text-decoration: underline; }
+
+    /* ---- Table ---- */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      padding: .75rem .75rem;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: .75rem .75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: .88rem;
+      vertical-align: middle;
+    }
+    tr:hover td { background: rgba(99, 102, 241, 0.04); }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+    .badge-done { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-error { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .badge-processing, .badge-queued, .badge-pending { background: rgba(234, 179, 8, 0.15); color: #fbbf24; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .btn-sm {
+      padding: .4rem .8rem;
+      border: none;
+      border-radius: 8px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-download { background: rgba(99, 102, 241, 0.15); color: var(--primary-light); }
+    .btn-download:hover { background: rgba(99, 102, 241, 0.3); }
+    .btn-delete { background: rgba(239, 68, 68, 0.1); color: #f87171; }
+    .btn-delete:hover { background: rgba(239, 68, 68, 0.25); }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+    }
+    .empty-state a { color: var(--primary-light); text-decoration: none; font-weight: 600; }
+
+    /* ---- Error ---- */
+    .error-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #f87171;
+      padding: .75rem 1rem;
+      border-radius: var(--radius-sm);
+      margin-bottom: 1rem;
+      font-size: .9rem;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 640px) {
+      .container { padding: 1.5rem 1rem; }
+      .card { padding: 1.25rem; }
+      .page-title { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">CompressIt</div>
+      <nav class="nav-links">
+        <a href="/" class="{% if active_page == 'compress' %}active{% endif %}">Compress</a>
+        <a href="/history" class="{% if active_page == 'history' %}active{% endif %}">History</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
